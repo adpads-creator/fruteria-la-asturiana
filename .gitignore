@@ -47,3 +47,5 @@ terraform.rc
 
 web/node_modules/
 web/dist/
+
+infra/.build/

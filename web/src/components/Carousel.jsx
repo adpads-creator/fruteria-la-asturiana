@@ -53,6 +53,7 @@ export default function Carousel({ slides, interval = 5000, className = "", over
         />
       ))}
       {overlay}
+      {slides[index]?.caption && <p className="caption">{slides[index].caption}</p>}
       {count > 1 && (
         <>
           <button className="nav prev" onClick={() => go(index - 1)} aria-label="Anterior">‹</button>

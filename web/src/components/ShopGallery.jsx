@@ -1,16 +1,21 @@
+import { useEffect, useState } from "react";
 import Carousel from "./Carousel.jsx";
 
-const found = import.meta.glob("/src/assets/tienda/*.{jpg,jpeg,png,webp}", {
-  eager: true,
-  query: "?url",
-  import: "default",
-});
-
-const slides = Object.entries(found)
-  .sort(([a], [b]) => a.localeCompare(b))
-  .map(([path, src]) => ({ src, alt: `Frutería La Asturiana: ${path.split("/").pop().replace(/\.[^.]+$/, "").replace(/[-_]/g, " ")}` }));
-
 export default function ShopGallery() {
+  const [slides, setSlides] = useState([]);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/gallery.json")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list) => {
+        if (!alive || !Array.isArray(list)) return;
+        setSlides(list.map((p) => ({ src: p.src, alt: p.caption || "Foto de la Frutería La Asturiana", caption: p.caption })));
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
   if (slides.length === 0) return null;
   return (
     <section id="tienda" className="alt">
