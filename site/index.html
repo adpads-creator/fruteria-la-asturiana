@@ -1,0 +1,42 @@
+﻿<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Frutería La Asturiana · Fruta y verdura fresca</title>
+<meta name="description" content="Frutería La Asturiana: fruta y verdura fresca, de temporada y de proximidad.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="hero">
+  <nav><span class="logo">🍎 La Asturiana</span>
+    <a href="#productos">Productos</a><a href="#nosotros">Nosotros</a><a href="#contacto">Contacto</a></nav>
+  <div class="hero-text">
+    <h1>Fruta y verdura fresca, cada día</h1>
+    <p>Producto de temporada y de proximidad, elegido a mano para tu mesa.</p>
+    <a class="btn" href="#contacto">Visítanos</a>
+  </div>
+</header>
+<main>
+  <section id="productos">
+    <h2>Lo que encontrarás</h2>
+    <div class="grid">
+      <article><span>🍎</span><h3>Fruta de temporada</h3><p>Manzanas, peras, cítricos y fruta de hueso según la época.</p></article>
+      <article><span>🥬</span><h3>Verduras y hortalizas</h3><p>Hojas verdes, tomates, pimientos y todo para tu huerta en casa.</p></article>
+      <article><span>🍓</span><h3>Frutos rojos</h3><p>Fresas, arándanos y frambuesas cuando están en su punto.</p></article>
+      <article><span>🧺</span><h3>Cestas y encargos</h3><p>Prepáranos tu pedido y lo tendrás listo para recoger.</p></article>
+    </div>
+  </section>
+  <section id="nosotros" class="alt">
+    <h2>Nosotros</h2>
+    <p>Somos una frutería de barrio con trato cercano. Seleccionamos cada pieza buscando sabor y frescura, y te aconsejamos qué está mejor cada semana.</p>
+  </section>
+  <section id="contacto">
+    <h2>Contacto</h2>
+    <p>Dirección, teléfono y horario: <em>próximamente</em>.</p>
+  </section>
+</main>
+<footer>© <span id="y"></span> Frutería La Asturiana</footer>
+<script>document.getElementById('y').textContent=new Date().getFullYear()</script>
+</body>
+</html>

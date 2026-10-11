@@ -1,0 +1,25 @@
+﻿name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths: ["site/**", ".github/workflows/deploy.yml"]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency: deploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::985124893669:role/fruteria-la-asturiana-github-deploy
+          aws-region: eu-west-1
+      - run: aws s3 sync site/ s3://fruteria-la-asturiana-985124893669 --delete
+      - run: aws cloudfront create-invalidation --distribution-id E1KD9JWA5FDJRH --paths "/*"
