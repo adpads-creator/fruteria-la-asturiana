@@ -44,3 +44,6 @@ terraform.rc
 # planout
 .terraform/
 *.tfstate*
+
+web/node_modules/
+web/dist/

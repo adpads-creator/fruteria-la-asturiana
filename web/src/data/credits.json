@@ -1,0 +1,37 @@
+[
+    {
+        "id":  "mercado",
+        "title":  "Fresh vegetables and fruits at the market.jpg",
+        "author":  "FranHogan",
+        "license":  "CC BY-SA 4.0",
+        "url":  "https://commons.wikimedia.org/wiki/File:Fresh_vegetables_and_fruits_at_the_market.jpg"
+    },
+    {
+        "id":  "ambersweet",
+        "title":  "Ambersweet oranges.jpg",
+        "author":  "",
+        "license":  "Public domain",
+        "url":  "https://commons.wikimedia.org/wiki/File:Ambersweet_oranges.jpg"
+    },
+    {
+        "id":  "naranjas",
+        "title":  "Oranges - whole-halved-segment.jpg",
+        "author":  "Ivar Leidus",
+        "license":  "CC BY-SA 4.0",
+        "url":  "https://commons.wikimedia.org/wiki/File:Oranges_-_whole-halved-segment.jpg"
+    },
+    {
+        "id":  "fresas",
+        "title":  "Organic-strawberries Canada.jpg",
+        "author":  "Marc-Lautenbacher",
+        "license":  "CC BY-SA 4.0",
+        "url":  "https://commons.wikimedia.org/wiki/File:Organic-strawberries_Canada.jpg"
+    },
+    {
+        "id":  "fresa-corte",
+        "title":  "Garden strawberry (Fragaria × ananassa) halved.jpg",
+        "author":  "Ivar Leidus",
+        "license":  "CC BY-SA 4.0",
+        "url":  "https://commons.wikimedia.org/wiki/File:Garden_strawberry_(Fragaria_%C3%97_ananassa)_halved.jpg"
+    }
+]

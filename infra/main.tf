@@ -1,4 +1,4 @@
-﻿terraform {
+terraform {
   required_version = ">= 1.5"
   backend "s3" {
     bucket         = "fruteria-la-asturiana-tfstate-985124893669"
@@ -30,20 +30,6 @@ variable "project" {
 
 data "aws_caller_identity" "current" {}
 
-locals {
-  site_dir = "${path.module}/../site"
-  types = {
-    html = "text/html; charset=utf-8"
-    css  = "text/css; charset=utf-8"
-    js   = "application/javascript"
-    png  = "image/png"
-    jpg  = "image/jpeg"
-    svg  = "image/svg+xml"
-    ico  = "image/x-icon"
-  }
-  files = fileset(local.site_dir, "**")
-}
-
 resource "aws_s3_bucket" "site" {
   bucket = "${var.project}-${data.aws_caller_identity.current.account_id}"
 }
@@ -54,15 +40,6 @@ resource "aws_s3_bucket_public_access_block" "site" {
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
-}
-
-resource "aws_s3_object" "files" {
-  for_each     = local.files
-  bucket       = aws_s3_bucket.site.id
-  key          = each.value
-  source       = "${local.site_dir}/${each.value}"
-  etag         = filemd5("${local.site_dir}/${each.value}")
-  content_type = lookup(local.types, element(reverse(split(".", each.value)), 0), "application/octet-stream")
 }
 
 resource "aws_cloudfront_origin_access_control" "site" {
