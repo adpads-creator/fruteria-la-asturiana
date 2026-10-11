@@ -1,5 +1,13 @@
 ﻿terraform {
   required_version = ">= 1.5"
+  backend "s3" {
+    bucket         = "fruteria-la-asturiana-tfstate-985124893669"
+    key            = "landing/terraform.tfstate"
+    region         = "eu-west-1"
+    profile        = "personal"
+    encrypt        = true
+    dynamodb_table = "fruteria-tflock"
+  }
   required_providers {
     aws = { source = "hashicorp/aws", version = "~> 5.0" }
   }
@@ -143,3 +151,4 @@ output "bucket" {
 output "distribution_id" {
   value = aws_cloudfront_distribution.site.id
 }
+

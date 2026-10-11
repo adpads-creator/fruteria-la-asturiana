@@ -1,6 +1,6 @@
 ﻿variable "github_repo" {
   type    = string
-  default = "adpads-creator/fruteria-la-asturiana"
+  default = "adpads-creator@341045143/fruteria-la-asturiana@1414499710"
 }
 
 resource "aws_iam_openid_connect_provider" "github" {
@@ -57,3 +57,4 @@ resource "aws_iam_role_policy" "deploy" {
 output "deploy_role_arn" {
   value = aws_iam_role.deploy.arn
 }
+
