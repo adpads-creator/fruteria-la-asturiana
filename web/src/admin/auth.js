@@ -27,7 +27,8 @@ export function translate(err) {
     case "InvalidPasswordException":
       return "La contraseña debe tener al menos 12 caracteres, con mayúscula, minúscula y número.";
     case "CodeMismatchException":
-      return "El código no es correcto.";
+    case "EnableSoftwareTokenMFAException":
+      return "El código no es correcto. Comprueba la hora del móvil y usa el código actual.";
     case "ExpiredCodeException":
       return "El código ha caducado. Pide uno nuevo.";
     case "LimitExceededException":
@@ -40,29 +41,56 @@ export function translate(err) {
   }
 }
 
+// Cognito puede encadenar retos: contraseña nueva -> alta de MFA -> código MFA.
+function handlers(user, resolve, reject) {
+  return {
+    onSuccess: () => resolve({ status: "ok" }),
+    onFailure: (e) => reject(new Error(translate(e))),
+    newPasswordRequired: () => resolve({ status: "new-password", user }),
+    mfaSetup: () => resolve({ status: "mfa-setup", user }),
+    totpRequired: () => resolve({ status: "totp", user }),
+    mfaRequired: () => reject(new Error("Método de verificación no soportado.")),
+    selectMFAType: () => user.sendMFASelectionAnswer("SOFTWARE_TOKEN_MFA", handlers(user, resolve, reject)),
+  };
+}
+
 export function login(email, password) {
   const user = new CognitoUser({ Username: email.trim().toLowerCase(), Pool: pool });
   const details = new AuthenticationDetails({ Username: email.trim().toLowerCase(), Password: password });
-  return new Promise((resolve, reject) => {
-    user.authenticateUser(details, {
-      onSuccess: () => resolve({ status: "ok" }),
-      onFailure: (e) => reject(new Error(translate(e))),
-      newPasswordRequired: () => resolve({ status: "new-password", user }),
-    });
-  });
+  return new Promise((resolve, reject) => user.authenticateUser(details, handlers(user, resolve, reject)));
 }
 
 export function completeNewPassword(user, password) {
-  return new Promise((resolve, reject) => {
-    user.completeNewPasswordChallenge(
-      password,
-      {},
-      {
-        onSuccess: () => resolve(),
-        onFailure: (e) => reject(new Error(translate(e))),
-      }
-    );
-  });
+  return new Promise((resolve, reject) => user.completeNewPasswordChallenge(password, {}, handlers(user, resolve, reject)));
+}
+
+export function startTotpSetup(user) {
+  return new Promise((resolve, reject) =>
+    user.associateSoftwareToken({
+      associateSecretCode: (secret) => resolve(secret),
+      onFailure: (e) => reject(new Error(translate(e))),
+    })
+  );
+}
+
+export function finishTotpSetup(user, code) {
+  return new Promise((resolve, reject) =>
+    user.verifySoftwareToken(code.replace(/\s/g, ""), "app", {
+      onSuccess: () => resolve({ status: "ok" }),
+      onFailure: (e) => reject(new Error(translate(e))),
+    })
+  );
+}
+
+export function sendTotp(user, code) {
+  return new Promise((resolve, reject) =>
+    user.sendMFACode(code.replace(/\s/g, ""), handlers(user, resolve, reject), "SOFTWARE_TOKEN_MFA")
+  );
+}
+
+export function totpUri(email, secret) {
+  const issuer = "Frutería La Asturiana";
+  return `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(email)}?secret=${secret}&issuer=${encodeURIComponent(issuer)}`;
 }
 
 export function startReset(email) {
@@ -97,7 +125,19 @@ export function currentSession() {
 }
 
 export function logout() {
-  pool?.getCurrentUser()?.signOut();
+  const user = pool?.getCurrentUser();
+  if (!user) return Promise.resolve();
+  // Revoca también el refresh token en Cognito, no solo en este navegador.
+  return new Promise((resolve) =>
+    user.getSession((err) => {
+      if (err) {
+        user.signOut();
+        resolve();
+        return;
+      }
+      user.globalSignOut({ onSuccess: resolve, onFailure: () => { user.signOut(); resolve(); } });
+    })
+  );
 }
 
 export async function api(method, path, body) {

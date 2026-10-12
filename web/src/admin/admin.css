@@ -36,3 +36,4 @@ figure button{margin:.5rem}
 .users{list-style:none;padding:0;display:grid;gap:.6rem}
 .users li{display:flex;justify-content:space-between;align-items:center;gap:1rem;background:#fff;padding:.8rem 1rem;border-radius:.8rem}
 .users small{color:#5b6b55}
+.steps{padding-left:1.2rem;margin-bottom:1rem}.steps li{margin-bottom:.4rem}.qr{display:block;margin:0 auto 1rem;width:220px;height:220px;image-rendering:pixelated}.secret{font-size:1.05rem;letter-spacing:.05em;word-break:break-all}details{margin-bottom:1rem}

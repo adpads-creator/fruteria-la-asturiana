@@ -1,4 +1,4 @@
-﻿variable "github_repo" {
+variable "github_repo" {
   type    = string
   default = "adpads-creator@341045143/fruteria-la-asturiana@1414499710"
 }

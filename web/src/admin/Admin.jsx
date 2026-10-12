@@ -1,9 +1,68 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import QRCode from "qrcode";
 import {
   init, login, completeNewPassword, startReset, finishReset,
+  startTotpSetup, finishTotpSetup, sendTotp, totpUri,
   currentSession, logout, api, emailOf,
 } from "./auth.js";
 import { toJpeg, blobToBase64 } from "./image.js";
+
+function TotpSetup({ user, email, onDone }) {
+  const [secret, setSecret] = useState("");
+  const [qr, setQr] = useState("");
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    startTotpSetup(user)
+      .then(async (s) => {
+        setSecret(s);
+        setQr(await QRCode.toDataURL(totpUri(email, s), { margin: 1, width: 220 }));
+      })
+      .catch((e) => setError(e.message));
+  }, [user, email]);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await finishTotpSetup(user, code);
+      onDone();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <main className="card narrow">
+      <h1>🔐 Protege tu acceso</h1>
+      <ol className="steps">
+        <li>Instala en el móvil <strong>Google Authenticator</strong> o <strong>Microsoft Authenticator</strong> (gratis).</li>
+        <li>En la app, pulsa <em>Añadir</em> y escanea este código.</li>
+        <li>Escribe aquí el número de 6 cifras que te muestra.</li>
+      </ol>
+      {qr ? <img className="qr" src={qr} alt="Código QR para la app de verificación" /> : !error && <p>Preparando…</p>}
+      {secret && (
+        <details>
+          <summary>¿No puedes escanearlo?</summary>
+          <p>Introduce esta clave a mano: <code className="secret">{secret.match(/.{1,4}/g).join(" ")}</code></p>
+        </details>
+      )}
+      <form onSubmit={submit}>
+        <label>
+          Código de 6 cifras
+          <input inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]{6,7}" required value={code} onChange={(e) => setCode(e.target.value)} />
+        </label>
+        {error && <p className="err" role="alert">{error}</p>}
+        <button className="primary" disabled={busy || !secret}>{busy ? "Comprobando…" : "Activar"}</button>
+      </form>
+    </main>
+  );
+}
 
 function Login({ onDone }) {
   const [mode, setMode] = useState("login");
@@ -33,20 +92,26 @@ function Login({ onDone }) {
     if (password !== password2) throw new Error("Las contraseñas no coinciden.");
   };
 
+  const next = (r) => {
+    setPassword("");
+    setPassword2("");
+    setCode("");
+    setInfo("");
+    if (r.status === "ok") return onDone();
+    setPending(r.user);
+    setMode(r.status === "new-password" ? "new" : r.status);
+  };
+
   const submit = (e) => {
     e.preventDefault();
     run(async () => {
       if (mode === "login") {
-        const r = await login(email, password);
-        if (r.status === "new-password") {
-          setPending(r.user);
-          setPassword("");
-          setMode("new");
-        } else onDone();
+        next(await login(email, password));
       } else if (mode === "new") {
         checkNew();
-        await completeNewPassword(pending, password);
-        onDone();
+        next(await completeNewPassword(pending, password));
+      } else if (mode === "totp") {
+        next(await sendTotp(pending, code));
       } else if (mode === "forgot") {
         setPending(await startReset(email));
         setInfo("Te hemos enviado un código por email.");
@@ -58,14 +123,18 @@ function Login({ onDone }) {
         setInfo("Contraseña cambiada. Ya puedes entrar.");
         setPassword("");
         setPassword2("");
+        setCode("");
         setMode("login");
       }
     });
   };
 
+  if (mode === "mfa-setup") return <TotpSetup user={pending} email={email.trim().toLowerCase()} onDone={onDone} />;
+
   const titles = {
     login: "Entrar al panel",
     new: "Crea tu contraseña",
+    totp: "Código de verificación",
     forgot: "Recuperar contraseña",
     reset: "Nueva contraseña",
   };
@@ -74,6 +143,7 @@ function Login({ onDone }) {
     <main className="card narrow">
       <h1>🍎 {titles[mode]}</h1>
       {mode === "new" && <p>Es tu primer acceso. Elige una contraseña de al menos 12 caracteres.</p>}
+      {mode === "totp" && <p>Abre tu app de verificación y escribe el código de 6 cifras de "Frutería La Asturiana".</p>}
       {info && <p className="ok">{info}</p>}
       <form onSubmit={submit}>
         {(mode === "login" || mode === "forgot") && (
@@ -82,13 +152,13 @@ function Login({ onDone }) {
             <input type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} />
           </label>
         )}
-        {mode === "reset" && (
+        {(mode === "reset" || mode === "totp") && (
           <label>
-            Código recibido por email
-            <input inputMode="numeric" autoComplete="one-time-code" required value={code} onChange={(e) => setCode(e.target.value)} />
+            {mode === "totp" ? "Código de 6 cifras" : "Código recibido por email"}
+            <input inputMode="numeric" autoComplete="one-time-code" required autoFocus value={code} onChange={(e) => setCode(e.target.value)} />
           </label>
         )}
-        {mode !== "forgot" && (
+        {(mode === "login" || mode === "new" || mode === "reset") && (
           <label>
             {mode === "login" ? "Contraseña" : "Nueva contraseña"}
             <input
@@ -108,7 +178,7 @@ function Login({ onDone }) {
         )}
         {error && <p className="err" role="alert">{error}</p>}
         <button className="primary" disabled={busy}>
-          {busy ? "Un momento…" : mode === "forgot" ? "Enviar código" : mode === "login" ? "Entrar" : "Guardar"}
+          {busy ? "Un momento…" : mode === "forgot" ? "Enviar código" : mode === "login" ? "Entrar" : mode === "totp" ? "Verificar" : "Guardar"}
         </button>
       </form>
       {mode === "login" && (
@@ -116,8 +186,8 @@ function Login({ onDone }) {
           He olvidado mi contraseña
         </button>
       )}
-      {(mode === "forgot" || mode === "reset") && (
-        <button className="link" onClick={() => { setMode("login"); setError(""); setInfo(""); }}>
+      {mode !== "login" && (
+        <button className="link" onClick={() => { setMode("login"); setPending(null); setError(""); setInfo(""); }}>
           Volver
         </button>
       )}
@@ -125,24 +195,42 @@ function Login({ onDone }) {
   );
 }
 
-function Photos() {
+const ALBUMS = {
+  hero: {
+    title: "Fotos de portada",
+    help: "Son las fotos grandes del principio de la web, con el título encima. Usa fotos horizontales y luminosas. Mientras no subas ninguna, se ven las fotos de fruta de ejemplo.",
+    captions: false,
+    max: 12,
+  },
+  shop: {
+    title: "Fotos de la tienda",
+    help: 'Aparecen en el carrusel "La tienda", más abajo en la web. Puedes añadir un texto a cada foto.',
+    captions: true,
+    max: 200,
+  },
+};
+
+function Photos({ album }) {
+  const cfg = ALBUMS[album];
   const [photos, setPhotos] = useState(null);
   const [caption, setCaption] = useState("");
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const input = useRef(null);
+  const manifest = album === "hero" ? "/hero.json" : "/gallery.json";
 
   const load = useCallback(async () => {
+    setPhotos(null);
     try {
-      const res = await fetch(`/gallery.json?t=${Date.now()}`, { cache: "no-store" });
+      const res = await fetch(`${manifest}?t=${Date.now()}`, { cache: "no-store" });
       setPhotos(res.ok ? await res.json() : []);
     } catch {
       setPhotos([]);
     }
-  }, []);
+  }, [manifest]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); setError(""); setCaption(""); }, [load]);
 
   const upload = async (e) => {
     const files = [...e.target.files];
@@ -150,13 +238,11 @@ function Photos() {
     if (!files.length) return;
     setBusy(true);
     setError("");
-    let list = photos;
     try {
       for (let i = 0; i < files.length; i++) {
         setProgress(`Subiendo ${i + 1} de ${files.length}…`);
         const blob = await toJpeg(files[i]);
-        list = await api("POST", "/photos", { image: await blobToBase64(blob), caption });
-        setPhotos(list);
+        setPhotos(await api("POST", "/photos", { album, image: await blobToBase64(blob), caption: cfg.captions ? caption : "" }));
       }
       setCaption("");
     } catch (err) {
@@ -172,7 +258,7 @@ function Photos() {
     setBusy(true);
     setError("");
     try {
-      setPhotos(await api("DELETE", `/photos/${p.id}`));
+      setPhotos(await api("DELETE", `/photos/${album}/${p.id}`));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -180,29 +266,34 @@ function Photos() {
     }
   };
 
+  const full = photos && photos.length >= cfg.max;
+
   return (
     <section>
       <div className="card">
-        <h2>Subir fotos</h2>
-        <p>Elige una o varias fotos de la tienda. Aparecerán en el carrusel "La tienda" de la web en menos de un minuto.</p>
-        <label>
-          Texto de la foto (opcional)
-          <input value={caption} maxLength={140} onChange={(e) => setCaption(e.target.value)} placeholder="Ej: Fresas de hoy" />
-        </label>
+        <h2>{cfg.title}</h2>
+        <p>{cfg.help}</p>
+        {cfg.captions && (
+          <label>
+            Texto de la foto (opcional)
+            <input value={caption} maxLength={140} onChange={(e) => setCaption(e.target.value)} placeholder="Ej: Fresas de hoy" />
+          </label>
+        )}
         <input ref={input} type="file" accept="image/*" multiple hidden onChange={upload} />
-        <button className="primary big" disabled={busy} onClick={() => input.current.click()}>
+        <button className="primary big" disabled={busy || full} onClick={() => input.current.click()}>
           📷 Elegir fotos
         </button>
+        {full && <p className="muted">Has llegado al máximo de {cfg.max} fotos. Borra alguna para subir más.</p>}
         {progress && <p className="ok">{progress}</p>}
         {error && <p className="err" role="alert">{error}</p>}
       </div>
-      <h2>Fotos en la web {photos ? `(${photos.length})` : ""}</h2>
+      <h2>Publicadas {photos ? `(${photos.length})` : ""}</h2>
       {photos === null && <p>Cargando…</p>}
       {photos?.length === 0 && <p className="muted">Todavía no hay fotos. Sube la primera.</p>}
       <div className="thumbs">
         {photos?.map((p) => (
           <figure key={p.id}>
-            <img src={p.src} alt={p.caption || "Foto de la tienda"} loading="lazy" />
+            <img src={p.src} alt={p.caption || "Foto subida"} loading="lazy" />
             {p.caption && <figcaption>{p.caption}</figcaption>}
             <button className="danger" disabled={busy} onClick={() => remove(p)}>Borrar</button>
           </figure>
@@ -211,7 +302,6 @@ function Photos() {
     </section>
   );
 }
-
 function Users({ me }) {
   const [users, setUsers] = useState(null);
   const [email, setEmail] = useState("");
@@ -256,7 +346,7 @@ function Users({ me }) {
     <section>
       <form className="card" onSubmit={invite}>
         <h2>Invitar a otra persona</h2>
-        <p>Recibirá un email con una contraseña temporal para entrar a este panel. Podrá subir y borrar fotos e invitar a más gente, así que invita solo a quien confíes.</p>
+        <p>Recibirá un email con una contraseña temporal para entrar a este panel. La primera vez tendrá que configurar una app de verificación en su móvil. Podrá subir y borrar fotos e invitar a más gente, así que invita solo a quien confíes.</p>
         <label>
           Email
           <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -286,7 +376,7 @@ function Users({ me }) {
 export default function Admin() {
   const [state, setState] = useState("loading");
   const [session, setSession] = useState(null);
-  const [tab, setTab] = useState("photos");
+  const [tab, setTab] = useState("hero");
   const [fatal, setFatal] = useState("");
 
   const refresh = useCallback(async () => {
@@ -309,13 +399,14 @@ export default function Admin() {
         <strong>🍎 Panel de la frutería</strong>
         <span className="who">{emailOf(session)}</span>
         <a href="/" target="_blank" rel="noopener">Ver la web</a>
-        <button className="link" onClick={() => { logout(); refresh(); }}>Salir</button>
+        <button className="link" onClick={() => logout().then(refresh)}>Salir</button>
       </header>
       <nav className="tabs">
-        <button className={tab === "photos" ? "on" : ""} onClick={() => setTab("photos")}>📷 Fotos</button>
+        <button className={tab === "hero" ? "on" : ""} onClick={() => setTab("hero")}>🖼️ Portada</button>
+        <button className={tab === "shop" ? "on" : ""} onClick={() => setTab("shop")}>📷 Tienda</button>
         <button className={tab === "users" ? "on" : ""} onClick={() => setTab("users")}>👥 Usuarios</button>
       </nav>
-      <main className="wrap">{tab === "photos" ? <Photos /> : <Users me={emailOf(session)} />}</main>
+      <main className="wrap">{tab === "users" ? <Users me={emailOf(session)} /> : <Photos album={tab} />}</main>
     </>
   );
 }

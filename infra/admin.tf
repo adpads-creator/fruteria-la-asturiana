@@ -6,8 +6,12 @@ resource "aws_cognito_user_pool" "admin" {
   name                     = "${var.project}-admin"
   username_attributes      = ["email"]
   auto_verified_attributes = ["email"]
-  mfa_configuration        = "OFF"
+  mfa_configuration        = "ON"
   deletion_protection      = "ACTIVE"
+
+  software_token_mfa_configuration {
+    enabled = true
+  }
 
   password_policy {
     minimum_length                   = 12
@@ -47,7 +51,8 @@ resource "aws_cognito_user_pool_client" "admin" {
   prevent_user_existence_errors = "ENABLED"
   id_token_validity             = 60
   access_token_validity         = 60
-  refresh_token_validity        = 30
+  refresh_token_validity        = 7
+  enable_token_revocation       = true
 
   token_validity_units {
     id_token      = "minutes"
@@ -91,6 +96,7 @@ data "aws_iam_policy_document" "admin_api" {
     actions = ["s3:GetObject", "s3:PutObject"]
     resources = [
       "${aws_s3_bucket.site.arn}/gallery.json",
+      "${aws_s3_bucket.site.arn}/hero.json",
       "${aws_s3_bucket.site.arn}/gallery/*",
     ]
   }
@@ -168,7 +174,7 @@ resource "aws_apigatewayv2_integration" "lambda" {
 resource "aws_apigatewayv2_route" "routes" {
   for_each = toset([
     "POST /photos",
-    "DELETE /photos/{id}",
+    "DELETE /photos/{album}/{id}",
     "GET /users",
     "POST /users",
     "DELETE /users/{username}",
@@ -203,6 +209,18 @@ resource "aws_lambda_permission" "api" {
 resource "aws_s3_object" "gallery" {
   bucket        = aws_s3_bucket.site.id
   key           = "gallery.json"
+  content       = "[]"
+  content_type  = "application/json"
+  cache_control = "no-cache"
+
+  lifecycle {
+    ignore_changes = [content, etag]
+  }
+}
+
+resource "aws_s3_object" "hero" {
+  bucket        = aws_s3_bucket.site.id
+  key           = "hero.json"
   content       = "[]"
   content_type  = "application/json"
   cache_control = "no-cache"

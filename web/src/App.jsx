@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import Carousel from "./components/Carousel.jsx";
 import Seasonal from "./components/Seasonal.jsx";
 import ShopGallery from "./components/ShopGallery.jsx";
@@ -6,7 +7,27 @@ import credits from "./data/credits.json";
 
 const wa = (phone) => `https://wa.me/${phone.replace("+", "")}?text=${encodeURIComponent("Hola, quería hacer un pedido en la frutería.")}`;
 
+// Si los dueños han subido fotos de portada, sustituyen a las de stock.
+function useHeroSlides() {
+  const [slides, setSlides] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    fetch("/hero.json")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list) => {
+        if (!alive) return;
+        const own = Array.isArray(list) ? list.map((p) => ({ src: p.src, alt: p.caption || "Frutería La Asturiana" })) : [];
+        setSlides(own.length ? own : hero);
+      })
+      .catch(() => alive && setSlides(hero));
+    return () => { alive = false; };
+  }, []);
+  return slides ?? [];
+}
+
 export default function App() {
+  const heroSlides = useHeroSlides();
+  const usingStock = heroSlides === hero;
   return (
     <>
       <header className="top">
@@ -20,7 +41,7 @@ export default function App() {
       </header>
       <main>
         <Carousel
-          slides={hero}
+          slides={heroSlides}
           className="hero"
           overlay={
             <div className="hero-text">
@@ -73,6 +94,7 @@ export default function App() {
       </main>
       <footer>
         <p>© {new Date().getFullYear()} Frutería La Asturiana</p>
+        {usingStock && (
         <details>
           <summary>Créditos de las fotos</summary>
           <ul>
@@ -83,6 +105,7 @@ export default function App() {
             ))}
           </ul>
         </details>
+        )}
       </footer>
     </>
   );
